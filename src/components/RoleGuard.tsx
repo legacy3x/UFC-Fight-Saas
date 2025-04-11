@@ -1,41 +1,26 @@
-import { FC, ReactNode, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useSupabaseClient } from '@supabase/auth-helpers-react'
+import { FC, ReactNode, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useSession } from '@supabase/auth-helpers-react';
 
 interface RoleGuardProps {
-  children: ReactNode
-  requiredRoles: string[]
+  children: ReactNode;
 }
 
-const RoleGuard: FC<RoleGuardProps> = ({ children, requiredRoles }) => {
-  const supabase = useSupabaseClient()
-  const navigate = useNavigate()
+const RoleGuard: FC<RoleGuardProps> = ({ children }) => {
+  const session = useSession();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        navigate('/login')
-        return
-      }
-
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-
-      const hasRole = roles?.some(role => requiredRoles.includes(role.role))
-      
-      if (!hasRole) {
-        navigate('/unauthorized')
-      }
+    if (!session) {
+      navigate('/login');
     }
+  }, [session, navigate]);
 
-    checkAuth()
-  }, [supabase, navigate, requiredRoles])
+  if (!session) {
+    return null;
+  }
 
-  return <>{children}</>
+  return <>{children}</>;
 }
 
-export default RoleGuard
+export default RoleGuard;

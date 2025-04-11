@@ -1,190 +1,103 @@
-import { FC, useState, useEffect } from 'react'
-import RoleGuard from '../components/RoleGuard'
-import { useSupabaseClient } from '@supabase/auth-helpers-react'
-import { Fighter, UpcomingEvent, PredictionLog } from '../../types'
-import './Admin.css'
+import { FC, useState, useEffect } from 'react';
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import { format, parse, setHours, setMinutes } from 'date-fns';
+import { Fighter, UpcomingEvent, PredictionLog } from '../types';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import './Admin.css';
 
 const Admin: FC = () => {
-  const supabase = useSupabaseClient()
-  const [activeTab, setActiveTab] = useState('fighters')
-  const [fighters, setFighters] = useState<Fighter[]>([])
-  const [events, setEvents] = useState<UpcomingEvent[]>([])
-  const [logs, setLogs] = useState<PredictionLog[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [notification, setNotification] = useState({ message: '', type: '' })
+  const supabase = useSupabaseClient();
+  const [activeTab, setActiveTab] = useState('tools');
+  const [fighters, setFighters] = useState<Fighter[]>([]);
+  const [events, setEvents] = useState<UpcomingEvent[]>([]);
+  const [logs, setLogs] = useState<PredictionLog[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [notification, setNotification] = useState({ message: '', type: '' });
 
-  // Fetch data based on active tab
   useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true)
+      setIsLoading(true);
       try {
         switch (activeTab) {
           case 'fighters':
             const { data: fightersData } = await supabase
               .from('fighters')
               .select('*')
-              .order('last_name', { ascending: true })
-            setFighters(fightersData || [])
-            break
+              .order('last_name', { ascending: true });
+            setFighters(fightersData || []);
+            break;
           case 'events':
             const { data: eventsData } = await supabase
               .from('upcoming_events')
               .select('*')
-              .order('date', { ascending: true })
-            setEvents(eventsData || [])
-            break
+              .order('date', { ascending: true });
+            setEvents(eventsData || []);
+            break;
           case 'logs':
             const { data: logsData } = await supabase
               .from('prediction_logs')
               .select('*')
               .order('created_at', { ascending: false })
-              .limit(50)
-            setLogs(logsData || [])
-            break
+              .limit(50);
+            setLogs(logsData || []);
+            break;
         }
       } catch (error) {
-        showNotification('Failed to fetch data', 'error')
+        showNotification('Failed to fetch data', 'error');
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    fetchData()
-  }, [activeTab, supabase])
-
-  const triggerScraper = async (scraperType: string) => {
-    try {
-      setIsLoading(true)
-      const response = await fetch(`/api/admin/scrape-${scraperType}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
-      })
-      
-      if (!response.ok) throw new Error('Scraper failed')
-      
-      showNotification(`${scraperType.replace('-', ' ')} scraper started successfully`, 'success')
-    } catch (error) {
-      showNotification('Failed to trigger scraper', 'error')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+    fetchData();
+  }, [activeTab, supabase]);
 
   const showNotification = (message: string, type: string) => {
-    setNotification({ message, type })
-    setTimeout(() => setNotification({ message: '', type: '' }), 5000)
-  }
-
-  const updateFighter = async (fighter: Fighter) => {
-    try {
-      const { error } = await supabase
-        .from('fighters')
-        .update(fighter)
-        .eq('id', fighter.id)
-      
-      if (error) throw error
-      
-      showNotification('Fighter updated successfully', 'success')
-      setFighters(fighters.map(f => f.id === fighter.id ? fighter : f))
-    } catch (error) {
-      showNotification('Failed to update fighter', 'error')
-    }
-  }
+    setNotification({ message, type });
+    setTimeout(() => setNotification({ message: '', type: '' }), 5000);
+  };
 
   return (
-    <RoleGuard requiredRoles={['admin']}>
-      <div className="admin-dashboard">
-        <h1>Admin Dashboard</h1>
-        
-        {notification.message && (
-          <div className={`notification ${notification.type}`}>
-            {notification.message}
-          </div>
+    <div className="admin-dashboard">
+      {notification.message && (
+        <div className={`notification ${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
+
+      {activeTab === 'tools' && (
+        <h2 className="text-2xl font-bold text-white mt-5 mb-5 ml-6">System Tools</h2>
+      )}
+
+      <div className="admin-content">
+        {isLoading ? (
+          <div className="loading-spinner">Loading...</div>
+        ) : (
+          <>
+            {activeTab === 'fighters' && (
+              <FightersTable fighters={fighters} />
+            )}
+
+            {activeTab === 'events' && (
+              <EventsTable events={events} />
+            )}
+
+            {activeTab === 'logs' && (
+              <PredictionLogs logs={logs} />
+            )}
+
+            {activeTab === 'tools' && (
+              <SystemTools />
+            )}
+          </>
         )}
-
-        <div className="admin-tabs">
-          <button 
-            className={activeTab === 'fighters' ? 'active' : ''}
-            onClick={() => setActiveTab('fighters')}
-          >
-            Fighters
-          </button>
-          <button 
-            className={activeTab === 'events' ? 'active' : ''}
-            onClick={() => setActiveTab('events')}
-          >
-            Upcoming Events
-          </button>
-          <button 
-            className={activeTab === 'logs' ? 'active' : ''}
-            onClick={() => setActiveTab('logs')}
-          >
-            Prediction Logs
-          </button>
-          <button 
-            className={activeTab === 'tools' ? 'active' : ''}
-            onClick={() => setActiveTab('tools')}
-          >
-            System Tools
-          </button>
-        </div>
-
-        <div className="admin-content">
-          {isLoading ? (
-            <div className="loading-spinner">Loading...</div>
-          ) : (
-            <>
-              {activeTab === 'fighters' && (
-                <FightersTable 
-                  fighters={fighters} 
-                  onUpdate={updateFighter} 
-                />
-              )}
-
-              {activeTab === 'events' && (
-                <EventsTable events={events} />
-              )}
-
-              {activeTab === 'logs' && (
-                <PredictionLogs logs={logs} />
-              )}
-
-              {activeTab === 'tools' && (
-                <SystemTools 
-                  onScrape={triggerScraper} 
-                  isLoading={isLoading}
-                />
-              )}
-            </>
-          )}
-        </div>
       </div>
-    </RoleGuard>
-  )
-}
+    </div>
+  );
+};
 
-// Component for fighters table
-const FightersTable: FC<{ fighters: Fighter[], onUpdate: (fighter: Fighter) => void }> = ({ fighters, onUpdate }) => {
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState<Partial<Fighter>>({})
-
-  const handleEdit = (fighter: Fighter) => {
-    setEditingId(fighter.id)
-    setEditForm({ ...fighter })
-  }
-
-  const handleSave = (id: number) => {
-    onUpdate(editForm as Fighter)
-    setEditingId(null)
-  }
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setEditForm(prev => ({ ...prev, [name]: value }))
-  }
-
+const FightersTable: FC<{ fighters: Fighter[] }> = ({ fighters }) => {
   return (
     <div className="table-container">
       <h2>Fighters Management</h2>
@@ -196,104 +109,24 @@ const FightersTable: FC<{ fighters: Fighter[], onUpdate: (fighter: Fighter) => v
             <th>Record</th>
             <th>Team</th>
             <th>Country</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {fighters.map(fighter => (
             <tr key={fighter.id}>
-              <td>
-                {editingId === fighter.id ? (
-                  <input 
-                    name="first_name" 
-                    value={editForm.first_name || ''} 
-                    onChange={handleChange}
-                  />
-                ) : (
-                  `${fighter.first_name} ${fighter.last_name}`
-                )}
-              </td>
-              <td>
-                {editingId === fighter.id ? (
-                  <select 
-                    name="weight_class" 
-                    value={editForm.weight_class || ''} 
-                    onChange={handleChange}
-                  >
-                    <option value="Strawweight">Strawweight</option>
-                    <option value="Flyweight">Flyweight</option>
-                    {/* Other weight classes */}
-                  </select>
-                ) : (
-                  fighter.weight_class
-                )}
-              </td>
-              <td>
-                {editingId === fighter.id ? (
-                  <div className="record-edit">
-                    <input 
-                      name="wins" 
-                      type="number" 
-                      value={editForm.wins || 0} 
-                      onChange={handleChange}
-                    />
-                    -
-                    <input 
-                      name="losses" 
-                      type="number" 
-                      value={editForm.losses || 0} 
-                      onChange={handleChange}
-                    />
-                    -
-                    <input 
-                      name="draws" 
-                      type="number" 
-                      value={editForm.draws || 0} 
-                      onChange={handleChange}
-                    />
-                  </div>
-                ) : (
-                  `${fighter.wins}-${fighter.losses}-${fighter.draws}`
-                )}
-              </td>
-              <td>
-                {editingId === fighter.id ? (
-                  <input 
-                    name="team" 
-                    value={editForm.team || ''} 
-                    onChange={handleChange}
-                  />
-                ) : (
-                  fighter.team || '-'
-                )}
-              </td>
-              <td>
-                {editingId === fighter.id ? (
-                  <input 
-                    name="country" 
-                    value={editForm.country || ''} 
-                    onChange={handleChange}
-                  />
-                ) : (
-                  fighter.country
-                )}
-              </td>
-              <td>
-                {editingId === fighter.id ? (
-                  <button onClick={() => handleSave(fighter.id)}>Save</button>
-                ) : (
-                  <button onClick={() => handleEdit(fighter)}>Edit</button>
-                )}
-              </td>
+              <td>{`${fighter.first_name} ${fighter.last_name}`}</td>
+              <td>{fighter.weight_class}</td>
+              <td>{`${fighter.wins}-${fighter.losses}-${fighter.draws}`}</td>
+              <td>{fighter.team || '-'}</td>
+              <td>{fighter.country}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
-  )
-}
+  );
+};
 
-// Component for events table
 const EventsTable: FC<{ events: UpcomingEvent[] }> = ({ events }) => {
   return (
     <div className="table-container">
@@ -305,7 +138,6 @@ const EventsTable: FC<{ events: UpcomingEvent[] }> = ({ events }) => {
             <th>Date</th>
             <th>Location</th>
             <th>PPV</th>
-            <th>Main Event</th>
           </tr>
         </thead>
         <tbody>
@@ -315,16 +147,14 @@ const EventsTable: FC<{ events: UpcomingEvent[] }> = ({ events }) => {
               <td>{new Date(event.date).toLocaleDateString()}</td>
               <td>{event.location}</td>
               <td>{event.is_pay_per_view ? 'Yes' : 'No'}</td>
-              <td>{event.main_event_fight_id ? 'Set' : 'Not Set'}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
-  )
-}
+  );
+};
 
-// Component for prediction logs
 const PredictionLogs: FC<{ logs: PredictionLog[] }> = ({ logs }) => {
   return (
     <div className="table-container">
@@ -343,9 +173,7 @@ const PredictionLogs: FC<{ logs: PredictionLog[] }> = ({ logs }) => {
           {logs.map(log => (
             <tr key={log.id}>
               <td>{new Date(log.created_at).toLocaleString()}</td>
-              <td>
-                {log.fighter1_name} vs {log.fighter2_name}
-              </td>
+              <td>{log.fighter1_name} vs {log.fighter2_name}</td>
               <td>{log.predicted_winner}</td>
               <td>{Math.round(log.confidence * 100)}%</td>
               <td>{log.predicted_method.replace('_', '/')}</td>
@@ -354,71 +182,224 @@ const PredictionLogs: FC<{ logs: PredictionLog[] }> = ({ logs }) => {
         </tbody>
       </table>
     </div>
-  )
-}
+  );
+};
 
-// Component for system tools
-const SystemTools: FC<{ 
-  onScrape: (type: string) => void,
-  isLoading: boolean
-}> = ({ onScrape, isLoading }) => {
+const SystemTools: FC = () => {
+  const supabase = useSupabaseClient();
+  const [schedules, setSchedules] = useState({
+    fighters: new Date(),
+    roster: new Date(),
+    events: new Date(),
+    odds: new Date()
+  });
+  const [times, setTimes] = useState({
+    fighters: '00:00',
+    roster: '00:00',
+    events: '00:00',
+    odds: '00:00'
+  });
+  const [progress, setProgress] = useState({
+    fighters: 0,
+    roster: 0,
+    events: 0,
+    odds: 0
+  });
+  const [isRunning, setIsRunning] = useState({
+    fighters: false,
+    roster: false,
+    events: false,
+    odds: false
+  });
+
+  const timeOptions = Array.from({ length: 24 * 4 }, (_, i) => {
+    const hours = Math.floor(i / 4);
+    const minutes = (i % 4) * 15;
+    return format(setMinutes(setHours(new Date(), hours), minutes), 'HH:mm');
+  });
+
+  useEffect(() => {
+    const loadSchedules = async () => {
+      const { data } = await supabase
+        .from('scraper_schedules')
+        .select('type, cron_expression');
+
+      if (data) {
+        const scheduleMap = data.reduce((acc, curr) => {
+          if (curr.cron_expression) {
+            const [minute, hour, , , ] = curr.cron_expression.split(' ');
+            const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+            acc[curr.type] = {
+              date: new Date(),
+              time
+            };
+          }
+          return acc;
+        }, {});
+        
+        Object.entries(scheduleMap).forEach(([type, value]) => {
+          setSchedules(prev => ({ ...prev, [type]: value.date }));
+          setTimes(prev => ({ ...prev, [type]: value.time }));
+        });
+      }
+    };
+
+    loadSchedules();
+  }, [supabase]);
+
+  const handleDateChange = (type: string, date: Date) => {
+    setSchedules(prev => ({ ...prev, [type]: date }));
+  };
+
+  const handleTimeChange = (type: string, time: string) => {
+    setTimes(prev => ({ ...prev, [type]: time }));
+  };
+
+  const saveSchedule = async (type: string) => {
+    try {
+      const date = schedules[type];
+      const [hours, minutes] = times[type].split(':');
+      const cronExpression = `${minutes} ${hours} * * *`;
+
+      const { error } = await supabase
+        .from('scraper_schedules')
+        .upsert({
+          type,
+          cron_expression: cronExpression,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      
+      alert(`Schedule saved for ${type}`);
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+      alert('Failed to save schedule');
+    }
+  };
+
+  const runScraper = async (type: string) => {
+    try {
+      setIsRunning(prev => ({ ...prev, [type]: true }));
+      setProgress(prev => ({ ...prev, [type]: 0 }));
+
+      const response = await fetch(`/api/admin/scrape/${type}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Scraper failed');
+
+      const progressInterval = setInterval(async () => {
+        const { data } = await supabase
+          .from('scraper_logs')
+          .select('status, records_processed')
+          .eq('type', type)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (data) {
+          const progress = data.status === 'completed' ? 100 : 
+            data.records_processed ? Math.min((data.records_processed / 100) * 100, 99) : 0;
+          
+          setProgress(prev => ({ ...prev, [type]: progress }));
+
+          if (data.status === 'completed') {
+            clearInterval(progressInterval);
+            setIsRunning(prev => ({ ...prev, [type]: false }));
+          }
+        }
+      }, 1000);
+
+    } catch (error) {
+      console.error('Error running scraper:', error);
+      alert('Failed to run scraper');
+      setIsRunning(prev => ({ ...prev, [type]: false }));
+    }
+  };
+
   return (
     <div className="system-tools">
-      <h2>System Tools</h2>
-      
-      <div className="scraper-controls">
-        <h3>Data Scrapers</h3>
-        <div className="scraper-buttons">
-          <button 
-            onClick={() => onScrape('fighters')}
-            disabled={isLoading}
-          >
-            Update Fighters
-          </button>
-          <button 
-            onClick={() => onScrape('roster')}
-            disabled={isLoading}
-          >
-            Update Roster
-          </button>
-          <button 
-            onClick={() => onScrape('odds')}
-            disabled={isLoading}
-          >
-            Update Betting Odds
-          </button>
-          <button 
-            onClick={() => onScrape('events')}
-            disabled={isLoading}
-          >
-            Update Events
-          </button>
+      <div className="scraper-controls bg-white rounded-lg shadow-md p-6 mb-6">
+        <h3 className="text-xl font-semibold mb-4 text-black">Data Scrapers</h3>
+        
+        <div className="grid gap-6">
+          {['fighters', 'roster', 'events', 'odds'].map(type => (
+            <div key={type} className="scraper-item">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-black">
+                  {type.charAt(0).toUpperCase() + type.slice(1)} Data
+                </h4>
+                <button 
+                  onClick={() => runScraper(type)}
+                  disabled={isRunning[type]}
+                  className="bg-primary text-white px-4 py-2 rounded hover:bg-red-600 disabled:bg-gray-400"
+                >
+                  {isRunning[type] ? 'Running...' : 'Scrape Now'}
+                </button>
+              </div>
+              
+              <div className="date-time-picker">
+                <DatePicker
+                  selected={schedules[type]}
+                  onChange={(date) => handleDateChange(type, date as Date)}
+                  dateFormat="MM/dd/yyyy"
+                  className="text-black"
+                />
+                
+                <select
+                  value={times[type]}
+                  onChange={(e) => handleTimeChange(type, e.target.value)}
+                  className="time-select"
+                >
+                  {timeOptions.map(time => (
+                    <option key={time} value={time}>{time}</option>
+                  ))}
+                </select>
+
+                <button 
+                  onClick={() => saveSchedule(type)}
+                  className="bg-secondary text-white px-4 py-2 rounded hover:bg-gray-800"
+                >
+                  Save Schedule
+                </button>
+              </div>
+
+              {isRunning[type] && (
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill bg-primary"
+                    style={{ width: `${progress[type]}%` }}
+                  />
+                  <span className="progress-text text-black">
+                    {Math.round(progress[type])}%
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="system-stats">
-        <h3>System Statistics</h3>
-        <div className="stats-grid">
-          <div className="stat-card">
-            <h4>Total Fighters</h4>
-            <p>Loading...</p>
-          </div>
-          <div className="stat-card">
-            <h4>Upcoming Events</h4>
-            <p>Loading...</p>
-          </div>
-          <div className="stat-card">
-            <h4>Predictions Made</h4>
-            <p>Loading...</p>
-          </div>
-          <div className="stat-card">
-            <h4>System Health</h4>
-            <p className="status-good">Good</p>
+      <div className="help-section bg-white rounded-lg shadow-md p-6">
+        <h3 className="text-xl font-semibold mb-4 text-black">Schedule Help</h3>
+        <div className="grid grid-cols-1 gap-4">
+          <div>
+            <h4 className="font-semibold mb-2 text-black">Tips</h4>
+            <ul className="space-y-2 text-black">
+              <li>• Select a date and time for each scraper to run automatically</li>
+              <li>• Times are in 24-hour format</li>
+              <li>• Scrapers will run daily at the selected time</li>
+              <li>• You can also run scrapers manually using the "Scrape Now" button</li>
+            </ul>
           </div>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Admin
+export default Admin;
