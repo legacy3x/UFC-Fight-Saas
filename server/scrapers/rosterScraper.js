@@ -3,7 +3,7 @@ import axios from 'axios'
 import cheerio from 'cheerio'
 import 'dotenv/config'
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_SERVICE_ROLE_KEY)
 
 export async function scrapeUfcRoster() {
   try {

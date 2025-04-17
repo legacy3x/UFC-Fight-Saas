@@ -1,93 +1,131 @@
-import express from 'express'
-import { scheduleScrapers } from './scrapers/runAllScrapers.js'
-import 'dotenv/config'
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 
-const app = express()
-const PORT = process.env.PORT || 3001
+// Load environment variables
+dotenv.config();
 
-app.use(express.json())
+// Initialize Express app
+const app = express();
+const port = process.env.PORT || 3001;
 
-// Initialize scrapers scheduling
-scheduleScrapers()
+// Validate required environment variables
+const requiredEnvVars = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy' })
-})
+if (missingEnvVars.length > 0) {
+  console.error('Missing required environment variables:', missingEnvVars.join(', '));
+  process.exit(1);
+}
 
-// Individual scraper endpoints
-app.post('/api/admin/scrape/:type', async (req, res) => {
-  if (process.env.NODE_ENV === 'production' && !req.headers['x-admin-secret']) {
-    return res.status(403).json({ error: 'Unauthorized' })
-  }
-
-  const { type } = req.params
-  const scraperMap = {
-    fighters: 'runFighterStatsScraper',
-    roster: 'runRosterScraper',
-    odds: 'runBettingOddsScraper',
-    events: 'runEventsScraper'
-  }
-
-  const scraperFunction = scraperMap[type]
-  if (!scraperFunction) {
-    return res.status(400).json({ error: 'Invalid scraper type' })
-  }
-
-  try {
-    const { [scraperFunction]: runScraper } = await import('./scrapers/runAllScrapers.js')
-    const result = await runScraper()
-    
-    if (!result.success) {
-      return res.status(500).json({ 
-        error: result.error,
-        details: result.details
-      })
+// Initialize Supabase client with service role key for backend operations
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
     }
-    
-    res.json({ 
-      success: true, 
-      result: {
-        message: result.message,
-        count: result.count
-      }
-    })
-  } catch (error) {
-    console.error(`Error running ${type} scraper:`, error)
-    res.status(500).json({ 
-      error: error.message,
-      details: error.stack
-    })
   }
-})
+);
 
-// Manual trigger endpoint (protected in production)
-app.post('/trigger-scrapers', async (req, res) => {
-  if (process.env.NODE_ENV === 'production' && !req.headers['x-admin-secret']) {
-    return res.status(403).json({ error: 'Unauthorized' })
-  }
+// Middleware
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'], // Allow both localhost and 127.0.0.1
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  next();
+});
+
+// Basic health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    supabase: {
+      url: !!process.env.VITE_SUPABASE_URL,
+      key: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    }
+  });
+});
+
+// Fighters endpoints
+app.get('/api/fighters', async (req, res, next) => {
   try {
-    const { runFighterStatsScraper, runRosterScraper, runBettingOddsScraper, runEventsScraper } = await import('./scrapers/runAllScrapers.js')
+    console.log('Fetching fighters from Supabase...');
     
-    const results = await Promise.allSettled([
-      runFighterStatsScraper(),
-      runRosterScraper(),
-      runBettingOddsScraper(),
-      runEventsScraper()
-    ])
+    const { data, error } = await supabase
+      .from('fighters')
+      .select('*')
+      .order('last_name', { ascending: true });
 
-    res.json({
-      success: true,
-      results: results.map(r => r.status === 'fulfilled' ? r.value : r.reason)
-    })
+    if (error) {
+      console.error('Supabase error:', error);
+      return res.status(500).json({ 
+        error: 'Database Error',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      });
+    }
+
+    if (!data) {
+      return res.status(404).json({ 
+        error: 'Not Found',
+        message: 'No fighters found'
+      });
+    }
+
+    console.log(`Successfully fetched ${data.length} fighters`);
+    res.json(data);
   } catch (error) {
-    console.error('Error running scrapers:', error)
-    res.status(500).json({ error: error.message })
+    console.error('Server error while fetching fighters:', error);
+    next(error);
   }
-})
+});
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-  console.log('Scraper automation system initialized')
-})
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  
+  // Handle specific error types
+  if (err.statusCode) {
+    return res.status(err.statusCode).json({
+      error: err.name,
+      message: err.message
+    });
+  }
+
+  // Default error response
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred'
+  });
+});
+
+// Global error handler for unhandled rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Global error handler for uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Start the server
+app.listen(port, '0.0.0.0', () => { // Listen on all network interfaces
+  console.log(`Backend server running on port ${port}`);
+  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log('Supabase URL configured:', !!process.env.VITE_SUPABASE_URL);
+  console.log('Supabase Service Role Key configured:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+  console.log('Server timestamp:', new Date().toISOString());
+});

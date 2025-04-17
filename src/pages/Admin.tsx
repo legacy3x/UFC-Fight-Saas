@@ -283,14 +283,25 @@ const SystemTools: FC = () => {
       setIsRunning(prev => ({ ...prev, [type]: true }));
       setProgress(prev => ({ ...prev, [type]: 0 }));
 
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error('Not authenticated');
+      }
+
       const response = await fetch(`/api/admin/scrape/${type}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      if (!response.ok) throw new Error('Scraper failed');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Scraper failed: ${response.status} - ${errorText}`);
+      }
 
       const progressInterval = setInterval(async () => {
         const { data } = await supabase
@@ -316,7 +327,7 @@ const SystemTools: FC = () => {
 
     } catch (error) {
       console.error('Error running scraper:', error);
-      alert('Failed to run scraper');
+      alert(error instanceof Error ? error.message : 'Failed to run scraper');
       setIsRunning(prev => ({ ...prev, [type]: false }));
     }
   };

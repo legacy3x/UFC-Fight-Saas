@@ -18,7 +18,6 @@ export default function App() {
       <div className="app">
         <Navbar />
         <Routes>
-          <Route path="/login" element={<Login />} />
           <Route path="/" element={
             <RoleGuard>
               <Home />
@@ -45,6 +44,7 @@ export default function App() {
           <Route path="/admin/fighters" element={<RoleGuard><AdminFighters /></RoleGuard>} />
           <Route path="/admin/events" element={<RoleGuard><AdminEvents /></RoleGuard>} />
           <Route path="/admin/tools" element={<RoleGuard><Admin activeTab="tools" /></RoleGuard>} />
+          <Route path="/login" element={<Login />} />
         </Routes>
       </div>
     </BrowserRouter>

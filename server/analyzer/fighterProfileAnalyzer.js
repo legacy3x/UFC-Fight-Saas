@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import 'dotenv/config'
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_SERVICE_ROLE_KEY)
 
 // Strength categories and their thresholds
 const STRENGTHS = {
@@ -179,6 +179,3 @@ function generateSummary(fighter, strengths, metrics) {
 
   return summary
 }
-
-// Example usage:
-// analyzeFighterProfile(123).then(console.log)
