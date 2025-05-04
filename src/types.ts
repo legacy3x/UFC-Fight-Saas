@@ -14,6 +14,24 @@ export interface Fighter {
   losses: number;
   draws: number;
   no_contests: number;
+  ranking?: number;
+  created_at: string;
+  updated_at: string;
+  modified_at: string;
+  fight_stats?: FightStats;
+}
+
+export interface FightStats {
+  id: number;
+  fighter_id: number;
+  significant_strikes_per_min: number;
+  significant_strike_accuracy: number;
+  significant_strikes_absorbed_per_min: number;
+  significant_strike_defense: number;
+  takedown_avg: number;
+  takedown_accuracy: number;
+  takedown_defense: number;
+  submission_avg: number;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +45,7 @@ export interface UpcomingEvent {
   main_event_fight_id?: number;
   created_at: string;
   updated_at: string;
+  fight_cards?: FightCard[];
 }
 
 export interface FightCard {

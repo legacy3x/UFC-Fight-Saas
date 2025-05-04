@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import 'dotenv/config'
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_SERVICE_ROLE_KEY)
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY)
 
 // Strength categories and their thresholds
 const STRENGTHS = {
@@ -69,7 +69,15 @@ export async function analyzeFighterProfile(fighterId) {
       success: true,
       data: {
         fighter,
-        metrics,
+        metrics: {
+          strikeAccuracy: Number(metrics.strikeAccuracy.toFixed(2)),
+          strikesPerMinute: Number(metrics.strikesPerMinute.toFixed(2)),
+          knockdownsPerFight: Number(metrics.knockdownsPerFight.toFixed(2)),
+          takedownsPer15Min: Number(metrics.takedownsPer15Min.toFixed(2)),
+          submissionsPerFight: Number(metrics.submissionsPerFight.toFixed(2)),
+          lateRoundWinRate: Number(metrics.lateRoundWinRate.toFixed(2)),
+          clinchStrikeRatio: Number(metrics.clinchStrikeRatio.toFixed(2))
+        },
         strengths,
         summary
       }
@@ -168,7 +176,7 @@ function generateSummary(fighter, strengths, metrics) {
   // Add notable metrics
   const notableMetrics = []
   if (metrics.strikesPerMinute > 5) notableMetrics.push(`high output (${metrics.strikesPerMinute.toFixed(1)} sig. strikes/min)`)
-  if (metrics.strikeAccuracy > 0.55) notableMetrics.push(`accuracy (${(metrics.strikeAccuracy * 100).toFixed(0)}%)`)
+  if (metrics.strikeAccuracy > 0.55) notableMetrics.push(`accuracy (${Math.round(metrics.strikeAccuracy * 100)}%)`)
   if (metrics.takedownsPer15Min > 3) notableMetrics.push(`grappling volume (${metrics.takedownsPer15Min.toFixed(1)} TD/15min)`)
 
   if (notableMetrics.length > 0) {

@@ -37,22 +37,6 @@ const Navbar: FC = () => {
             </li>
             <li>
               <Link 
-                to="/fighters" 
-                className={location.pathname === '/fighters' ? 'active' : ''}
-              >
-                Fighters
-              </Link>
-            </li>
-            <li>
-              <Link 
-                to="/events" 
-                className={location.pathname === '/events' ? 'active' : ''}
-              >
-                Events
-              </Link>
-            </li>
-            <li>
-              <Link 
                 to="/admin/fighters" 
                 className={location.pathname === '/admin/fighters' ? 'active' : ''}
               >

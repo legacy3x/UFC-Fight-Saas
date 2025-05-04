@@ -2,104 +2,63 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+  min-height: 100vh;
+  background: #1a1a1a;
+  color: white;
 }
 
 .predictions-header {
-  text-align: center;
   margin-bottom: 2rem;
 }
 
 .predictions-header h1 {
   font-size: 2.5rem;
   font-weight: 700;
-  color: white;
   margin-bottom: 0.5rem;
 }
 
 .predictions-header p {
-  color: #e4e4e4;
   font-size: 1.1rem;
+  color: #e4e4e4;
 }
 
 .fighter-selection {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
   gap: 2rem;
   margin-bottom: 2rem;
 }
 
 .fighter-picker {
   flex: 1;
-  background: white;
+  background: #2a2a2a;
   padding: 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .fighter-picker h3 {
-  color: #333;
+  color: white;
   margin-bottom: 1rem;
+  font-size: 1.2rem;
   font-weight: 600;
 }
 
-.fighter-search input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  color: #000;
-}
-
-.search-results {
-  position: absolute;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  margin-top: 0.5rem;
-  max-height: 300px;
-  overflow-y: auto;
-  width: calc(100% - 4rem);
-  z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.fighter-result {
-  padding: 0.75rem;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #eee;
-  color: #000;
-}
-
-.fighter-result:hover {
-  background: #f5f5f5;
-}
-
-.fighter-result span:last-child {
-  color: #666;
-  font-size: 0.9rem;
-}
-
 .selected-fighter {
-  background: #f8f9fa;
-  padding: 1rem;
+  background: #333;
+  padding: 1.5rem;
   border-radius: 4px;
-  text-align: center;
+  margin-bottom: 1rem;
 }
 
 .selected-fighter h4 {
-  color: #333;
-  font-size: 1.2rem;
+  color: white;
+  font-size: 1.4rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
 }
 
 .selected-fighter p {
-  color: #666;
+  color: #e4e4e4;
   margin-bottom: 0.5rem;
 }
 
@@ -107,20 +66,128 @@
   background: #e4032e;
   color: white;
   border: none;
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1.5rem;
   border-radius: 4px;
-  cursor: pointer;
   font-weight: 500;
-  margin-top: 0.5rem;
+  cursor: pointer;
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.selected-fighter button:hover {
+  background: #ff0436;
 }
 
 .vs-badge {
   background: #ffd700;
-  color: #333;
+  color: #1a1a1a;
   padding: 1rem 2rem;
-  border-radius: 50%;
+  border-radius: 4px;
   font-weight: 700;
   font-size: 1.5rem;
+  align-self: center;
+}
+
+.fighter-search {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.fighter-search input {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: white;
+  color: black;
+  font-size: 1rem;
+  margin-top: 1rem;
+}
+
+.fighter-search input::placeholder {
+  color: #666;
+}
+
+.fighter-recommendations {
+  background: white;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+.fighter-recommendations h4 {
+  color: black;
+  padding: 1rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  border-bottom: 1px solid #ddd;
+}
+
+.recommendation-item {
+  padding: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.recommendation-item:hover {
+  background: #f5f5f5;
+}
+
+.recommendation-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.recommendation-name {
+  color: black;
+  font-weight: 500;
+}
+
+.recommendation-record {
+  color: #666;
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.fighter-result {
+  padding: 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: black;
+}
+
+.fighter-result:last-child {
+  border-bottom: none;
+}
+
+.fighter-result:hover {
+  background: #f5f5f5;
+}
+
+.fighter-result span {
+  color: black;
+}
+
+.fighter-result span:last-child {
+  color: #666;
+  font-size: 0.9rem;
 }
 
 .prediction-actions {
@@ -137,7 +204,7 @@
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  min-width: 200px;
 }
 
 .predict-button:hover {
@@ -145,49 +212,45 @@
 }
 
 .predict-button:disabled {
-  background: #ccc;
+  background: #666;
   cursor: not-allowed;
 }
 
 .prediction-result {
-  margin: 2rem 0;
+  margin-top: 2rem;
 }
 
 .prediction-result h2 {
   color: white;
   margin-bottom: 1rem;
-  font-size: 1.5rem;
-  font-weight: 600;
 }
 
 .prediction-card {
-  background: white;
+  background: #2a2a2a;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .prediction-header {
-  background: #1a1a1a;
-  color: white;
-  padding: 1rem;
+  background: #333;
+  padding: 1.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .prediction-header h3 {
+  color: white;
+  margin: 0;
   font-size: 1.2rem;
-  font-weight: 600;
 }
 
 .confidence-badge {
   background: #28a745;
   color: white;
-  padding: 0.25rem 0.75rem;
+  padding: 0.5rem 1rem;
   border-radius: 20px;
   font-size: 0.9rem;
-  font-weight: 500;
 }
 
 .prediction-details {
@@ -195,95 +258,31 @@
 }
 
 .prediction-details p {
-  color: #333;
+  color: black;
   margin-bottom: 1rem;
   font-size: 1.1rem;
 }
 
-.prediction-details .winner {
+.winner {
   color: #e4032e;
   font-weight: 600;
 }
 
-.prediction-details .method {
-  color: #1a1a1a;
+.method {
+  color: black;
   font-weight: 600;
 }
 
 .save-button {
-  background: #1a1a1a;
+  background: #333;
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 4px;
-  cursor: pointer;
   font-weight: 500;
-  transition: background-color 0.2s;
+  cursor: pointer;
 }
 
 .save-button:hover {
-  background: #333;
-}
-
-.upcoming-events {
-  margin-top: 3rem;
-}
-
-.upcoming-events h2 {
-  color: white;
-  margin-bottom: 1.5rem;
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
-.events-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.event-card {
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.event-date {
-  background: #e4032e;
-  color: white;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 80px;
-  font-weight: 600;
-}
-
-.event-details {
-  padding: 1rem;
-  flex-grow: 1;
-}
-
-.event-details h3 {
-  color: #333;
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.event-details p {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.ppv-badge {
-  background: #ffd700;
-  color: #333;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-left: 0.5rem;
+  background: #444;
 }

@@ -1,6 +1,7 @@
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useEffect, useRef } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { UpcomingEvent, Fighter, FightCard } from '../types';
+import { parse, isValid } from 'date-fns';
 import './AdminEvents.css';
 
 const CARD_TYPES = ['main_card', 'prelims', 'early_prelims'] as const;
@@ -14,8 +15,8 @@ const AdminEvents: FC = () => {
   const [formData, setFormData] = useState<Partial<UpcomingEvent>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Fight card state
   const [searchTerm1, setSearchTerm1] = useState('');
   const [searchTerm2, setSearchTerm2] = useState('');
   const [searchResults1, setSearchResults1] = useState<Fighter[]>([]);
@@ -30,6 +31,287 @@ const AdminEvents: FC = () => {
     fetchEvents();
     fetchFighters();
   }, [supabase]);
+
+  const parseDateString = (dateStr: string): Date | null => {
+    const formats = [
+      'yyyy-MM-dd HH:mm',
+      'yyyy-MM-dd HH:mm:ss',
+      'yyyy-MM-ddTHH:mm:ss',
+      'yyyy-MM-ddTHH:mm:ssX',
+      'MM/dd/yyyy HH:mm',
+      'MM/dd/yyyy HH:mm:ss',
+      'yyyy-MM-dd',
+      'MM/dd/yyyy'
+    ];
+
+    for (const format of formats) {
+      const parsed = parse(dateStr, format, new Date());
+      if (isValid(parsed)) {
+        return parsed;
+      }
+    }
+
+    const isoDate = new Date(dateStr);
+    if (isValid(isoDate)) {
+      return isoDate;
+    }
+
+    return null;
+  };
+
+  const isDateString = (str: string): boolean => {
+    const datePatterns = [
+      /^\d{4}-\d{2}-\d{2}/,
+      /^\d{2}\/\d{2}\/\d{4}/,
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/,
+      /^\d{2}-\d{2}-\d{4}/
+    ];
+    return datePatterns.some(pattern => pattern.test(str.trim()));
+  };
+
+  const parseCSVRow = (row: string): string[] => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i];
+      
+      if (char === '"') {
+        if (inQuotes && row[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setSuccess(null);
+    setIsLoading(true);
+
+    try {
+      const text = await file.text();
+      const rows = text.split('\n').filter(row => row.trim());
+      
+      if (rows.length < 2) {
+        throw new Error('CSV file must contain at least a header row and one data row');
+      }
+
+      const headers = parseCSVRow(rows[0]).map(header => 
+        header.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_')
+      );
+
+      const requiredHeaders = ['name', 'location', 'date'];
+      const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
+      
+      if (missingHeaders.length > 0) {
+        throw new Error(`Missing required columns: ${missingHeaders.join(', ')}`);
+      }
+
+      const nameIndex = headers.indexOf('name');
+      const locationIndex = headers.indexOf('location');
+      const dateIndex = headers.indexOf('date');
+      const isPPVIndex = headers.indexOf('is_pay_per_view');
+      const fightsIndex = headers.indexOf('fights');
+
+      const validEvents = [];
+      const skippedRows = [];
+
+      for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex].trim();
+        if (!row) continue;
+
+        try {
+          const values = parseCSVRow(row);
+          
+          if (values.length < Math.min(3, headers.length)) {
+            skippedRows.push({ row: rowIndex + 1, reason: 'Insufficient columns' });
+            continue;
+          }
+
+          const name = values[nameIndex]?.trim();
+          const location = values[locationIndex]?.trim();
+          const dateStr = values[dateIndex]?.trim();
+          const isPPVStr = values[isPPVIndex]?.trim().toLowerCase();
+          const fightsStr = fightsIndex !== -1 ? values[fightsIndex]?.trim() : '';
+
+          if (!name || !location || !dateStr) {
+            skippedRows.push({ row: rowIndex + 1, reason: `Missing required fields: ${[
+              !name && 'name',
+              !location && 'location',
+              !dateStr && 'date'
+            ].filter(Boolean).join(', ')}` });
+            continue;
+          }
+
+          const parsedDate = parseDateString(dateStr);
+          if (!parsedDate) {
+            skippedRows.push({ 
+              row: rowIndex + 1, 
+              reason: `Invalid date format: ${dateStr}` 
+            });
+            continue;
+          }
+
+          const event = {
+            name,
+            location,
+            date: parsedDate.toISOString(),
+            is_pay_per_view: isPPVStr === 'true' || isPPVStr === '1' || isPPVStr === 'yes',
+            fights: []
+          };
+
+          if (fightsStr) {
+            try {
+              const fights = fightsStr.startsWith('[') ? 
+                JSON.parse(fightsStr) :
+                JSON.parse(`[${fightsStr}]`);
+
+              if (Array.isArray(fights)) {
+                event.fights = fights.map(fight => ({
+                  fighter1_name: fight.fighter1,
+                  fighter2_name: fight.fighter2,
+                  card_type: fight.card_type || 'main_card',
+                  bout_order: fight.bout_order || 1
+                }));
+              }
+            } catch (e) {
+              console.warn(`Could not parse fights for row ${rowIndex + 1}:`, e);
+            }
+          }
+
+          validEvents.push(event);
+        } catch (error) {
+          skippedRows.push({ 
+            row: rowIndex + 1, 
+            reason: error instanceof Error ? error.message : 'Unknown error parsing row' 
+          });
+          continue;
+        }
+      }
+
+      if (validEvents.length === 0) {
+        if (skippedRows.length > 0) {
+          throw new Error(`No valid events found in CSV. Issues found:\n${skippedRows.map(
+            row => `Row ${row.row}: ${row.reason}`
+          ).join('\n')}`);
+        } else {
+          throw new Error('No valid events found in CSV');
+        }
+      }
+
+      for (const event of validEvents) {
+        const { data: eventData, error: eventError } = await supabase
+          .from('upcoming_events')
+          .insert([{
+            name: event.name,
+            location: event.location,
+            date: event.date,
+            is_pay_per_view: event.is_pay_per_view
+          }])
+          .select()
+          .single();
+
+        if (eventError) throw eventError;
+
+        if (event.fights.length > 0 && eventData) {
+          const fightCards = event.fights.map((fight, index) => ({
+            event_id: eventData.id,
+            card_type: fight.card_type,
+            bout_order: fight.bout_order || index + 1,
+            fighter1_id: null,
+            fighter2_id: null
+          }));
+
+          const { error: fightCardError } = await supabase
+            .from('fight_cards')
+            .insert(fightCards);
+
+          if (fightCardError) {
+            console.warn(`Could not insert fight cards for event ${event.name}:`, fightCardError);
+          }
+        }
+      }
+
+      let message = `Successfully imported ${validEvents.length} events`;
+      if (skippedRows.length > 0) {
+        message += `\nSkipped ${skippedRows.length} rows due to format issues`;
+      }
+      setSuccess(message);
+      fetchEvents();
+    } catch (error) {
+      console.error('Error importing CSV:', error);
+      setError(error instanceof Error ? error.message : 'Failed to import CSV file');
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const downloadSampleCSV = () => {
+    const headers = [
+      'name',
+      'location',
+      'date',
+      'is_pay_per_view',
+      'fights'
+    ].join(',');
+
+    const sampleFights1 = JSON.stringify([
+      {
+        fighter1: "Jon Jones",
+        fighter2: "Ciryl Gane",
+        card_type: "main_card",
+        bout_order: 1
+      },
+      {
+        fighter1: "Alexa Grasso",
+        fighter2: "Valentina Shevchenko",
+        card_type: "main_card",
+        bout_order: 2
+      }
+    ]);
+
+    const sampleFights2 = JSON.stringify([
+      {
+        fighter1: "Sean O'Malley",
+        fighter2: "Marlon Vera",
+        card_type: "main_card",
+        bout_order: 1
+      }
+    ]);
+
+    const sampleData = [
+      `"UFC 300: Legacy","T-Mobile Arena Las Vegas","2025-04-13 22:00",true,${sampleFights1}`,
+      `"UFC Fight Night: O'Malley vs Vera 2","UFC APEX Las Vegas","2025-04-20 22:00",false,${sampleFights2}`
+    ].join('\n');
+
+    const csvContent = `${headers}\n${sampleData}`;
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'events_sample.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   const fetchEvents = async () => {
     setIsLoading(true);
@@ -174,11 +456,7 @@ const AdminEvents: FC = () => {
         .delete()
         .eq('id', event.id);
 
-      if (error) {
-        console.error('Delete error:', error);
-        setError('Failed to delete event. Please ensure you have admin permissions.');
-        return;
-      }
+      if (error) throw error;
 
       setSuccess('Event deleted successfully');
       fetchEvents();
@@ -197,53 +475,36 @@ const AdminEvents: FC = () => {
       let eventId: number;
 
       if (selectedEvent) {
-        // Update existing event
-        const updateData = {
-          name: formData.name,
-          location: formData.location,
-          date: formData.date,
-          is_pay_per_view: formData.is_pay_per_view
-        };
-
         const { error, data } = await supabase
           .from('upcoming_events')
-          .update(updateData)
+          .update({
+            name: formData.name,
+            location: formData.location,
+            date: formData.date,
+            is_pay_per_view: formData.is_pay_per_view
+          })
           .eq('id', selectedEvent.id)
           .select()
           .single();
 
-        if (error) {
-          console.error('Update error:', error);
-          setError('Failed to update event. Please ensure you have admin permissions.');
-          return;
-        }
-
+        if (error) throw error;
         eventId = selectedEvent.id;
 
-        // Delete existing fight cards
         await supabase
           .from('fight_cards')
           .delete()
           .eq('event_id', eventId);
-
       } else {
-        // Add new event
         const { error, data } = await supabase
           .from('upcoming_events')
           .insert([formData])
           .select()
           .single();
 
-        if (error) {
-          console.error('Insert error:', error);
-          setError('Failed to add event. Please ensure you have admin permissions.');
-          return;
-        }
-
+        if (error) throw error;
         eventId = data.id;
       }
 
-      // Insert fight cards
       if (fightCards.length > 0) {
         const fightCardsToInsert = fightCards.map(card => ({
           event_id: eventId,
@@ -257,11 +518,7 @@ const AdminEvents: FC = () => {
           .from('fight_cards')
           .insert(fightCardsToInsert);
 
-        if (fightCardError) {
-          console.error('Error inserting fight cards:', fightCardError);
-          setError('Failed to save fight cards');
-          return;
-        }
+        if (fightCardError) throw fightCardError;
       }
 
       setSuccess(selectedEvent ? 'Event updated successfully' : 'Event added successfully');
@@ -295,9 +552,32 @@ const AdminEvents: FC = () => {
     <div className="admin-events">
       <div className="admin-events-header">
         <h1>Event Management</h1>
-        <button onClick={handleAdd} className="add-button">
-          Add New Event
-        </button>
+        <div className="header-actions">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleImportCSV}
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+          />
+          <div className="import-actions">
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              className="import-button"
+            >
+              Import CSV
+            </button>
+            <button 
+              onClick={downloadSampleCSV}
+              className="sample-button"
+            >
+              Download Sample
+            </button>
+          </div>
+          <button onClick={handleAdd} className="add-button">
+            Add New Event
+          </button>
+        </div>
       </div>
 
       {error && <div className="error-message">{error}</div>}

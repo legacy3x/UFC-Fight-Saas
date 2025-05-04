@@ -1,40 +1,65 @@
 import { FC, useState, useEffect } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
-import { Fighter, UpcomingEvent, PredictionLog } from '../types';
+import { useLocation } from 'react-router-dom';
+import { Fighter, PredictionLog } from '../types';
 import './Predictions.css';
 
 const Predictions: FC = () => {
   const supabase = useSupabaseClient();
-  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
-  const [fighters, setFighters] = useState<Fighter[]>([]);
+  const location = useLocation();
   const [selectedFighter1, setSelectedFighter1] = useState<Fighter | null>(null);
   const [selectedFighter2, setSelectedFighter2] = useState<Fighter | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm1, setSearchTerm1] = useState('');
+  const [searchTerm2, setSearchTerm2] = useState('');
+  const [searchResults1, setSearchResults1] = useState<Fighter[]>([]);
+  const [searchResults2, setSearchResults2] = useState<Fighter[]>([]);
+  const [recommendations, setRecommendations] = useState<Fighter[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [prediction, setPrediction] = useState<PredictionLog | null>(null);
 
+  // Load fighters from state if provided
   useEffect(() => {
-    const fetchUpcomingEvents = async () => {
-      try {
-        const { data } = await supabase
-          .from('upcoming_events')
-          .select('*')
-          .order('date', { ascending: true })
-          .limit(5);
-        
-        setUpcomingEvents(data || []);
-      } catch (error) {
-        console.error('Error fetching events:', error);
+    const loadFighters = async () => {
+      const { fighter1Id, fighter2Id } = location.state || {};
+      
+      if (fighter1Id && fighter2Id) {
+        try {
+          const [{ data: fighter1 }, { data: fighter2 }] = await Promise.all([
+            supabase.from('fighters').select('*').eq('id', fighter1Id).single(),
+            supabase.from('fighters').select('*').eq('id', fighter2Id).single()
+          ]);
+
+          if (fighter1) {
+            setSelectedFighter1(fighter1);
+            setSearchTerm1(`${fighter1.first_name} ${fighter1.last_name}`);
+          }
+          
+          if (fighter2) {
+            setSelectedFighter2(fighter2);
+            setSearchTerm2(`${fighter2.first_name} ${fighter2.last_name}`);
+          }
+        } catch (error) {
+          console.error('Error loading fighters:', error);
+        }
       }
     };
 
-    fetchUpcomingEvents();
-  }, [supabase]);
+    loadFighters();
+  }, [location.state, supabase]);
 
+  // Load recommendations when a fighter is selected
   useEffect(() => {
-    const searchFighters = async () => {
-      if (searchTerm.length < 2) {
-        setFighters([]);
+    const loadRecommendations = async () => {
+      if (!selectedFighter1 && !selectedFighter2) {
+        setRecommendations([]);
+        return;
+      }
+
+      const selectedFighter = selectedFighter1 || selectedFighter2;
+      const otherFighter = selectedFighter1 ? selectedFighter2 : selectedFighter1;
+
+      if (!selectedFighter || otherFighter) {
+        setRecommendations([]);
         return;
       }
 
@@ -42,27 +67,74 @@ const Predictions: FC = () => {
         const { data } = await supabase
           .from('fighters')
           .select('*')
-          .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`)
-          .limit(10);
+          .eq('weight_class', selectedFighter.weight_class)
+          .neq('id', selectedFighter.id)
+          .order('wins', { ascending: false })
+          .limit(5);
 
-        setFighters(data || []);
+        setRecommendations(data || []);
       } catch (error) {
-        console.error('Error searching fighters:', error);
+        console.error('Error loading recommendations:', error);
       }
     };
 
-    const debounceTimer = setTimeout(searchFighters, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [searchTerm, supabase]);
+    loadRecommendations();
+  }, [selectedFighter1, selectedFighter2, supabase]);
+
+  // Search fighters in database
+  const searchFighters = async (searchTerm: string, isFirstFighter: boolean) => {
+    if (searchTerm.length < 2) {
+      if (isFirstFighter) setSearchResults1([]);
+      else setSearchResults2([]);
+      return;
+    }
+
+    try {
+      const { data } = await supabase
+        .from('fighters')
+        .select('*')
+        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`)
+        .order('last_name')
+        .limit(10);
+
+      if (isFirstFighter) {
+        setSearchResults1(data || []);
+      } else {
+        setSearchResults2(data || []);
+      }
+    } catch (error) {
+      console.error('Error searching fighters:', error);
+    }
+  };
+
+  // Debounced search for Fighter 1
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchFighters(searchTerm1, true);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm1]);
+
+  // Debounced search for Fighter 2
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchFighters(searchTerm2, false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm2]);
 
   const handleFighterSelect = (fighter: Fighter, position: 'fighter1' | 'fighter2') => {
     if (position === 'fighter1') {
       setSelectedFighter1(fighter);
+      setSearchTerm1(`${fighter.first_name} ${fighter.last_name}`);
+      setSearchResults1([]);
     } else {
       setSelectedFighter2(fighter);
+      setSearchTerm2(`${fighter.first_name} ${fighter.last_name}`);
+      setSearchResults2([]);
     }
-    setSearchTerm('');
-    setFighters([]);
   };
 
   const getPrediction = async () => {
@@ -117,19 +189,44 @@ const Predictions: FC = () => {
               <h4>{selectedFighter1.first_name} {selectedFighter1.last_name}</h4>
               <p>{selectedFighter1.weight_class}</p>
               <p>Record: {selectedFighter1.wins}-{selectedFighter1.losses}-{selectedFighter1.draws}</p>
-              <button onClick={() => setSelectedFighter1(null)}>Change Fighter</button>
+              <button onClick={() => {
+                setSelectedFighter1(null);
+                setSearchTerm1('');
+              }}>Change Fighter</button>
             </div>
           ) : (
             <div className="fighter-search">
+              {selectedFighter2 && !searchTerm1 && recommendations.length > 0 && (
+                <div className="fighter-recommendations">
+                  <h4>Recommended Opponents</h4>
+                  {recommendations.map(fighter => (
+                    <div
+                      key={fighter.id}
+                      className="recommendation-item"
+                      onClick={() => handleFighterSelect(fighter, 'fighter1')}
+                    >
+                      <div className="recommendation-info">
+                        <span className="recommendation-name">
+                          {fighter.first_name} {fighter.last_name}
+                        </span>
+                        <span className="recommendation-record">
+                          {fighter.wins}-{fighter.losses}-{fighter.draws}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <input
                 type="text"
                 placeholder="Search fighters..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchTerm1}
+                onChange={(e) => setSearchTerm1(e.target.value)}
+                autoComplete="off"
               />
-              {fighters.length > 0 && (
+              {searchResults1.length > 0 && (
                 <div className="search-results">
-                  {fighters.map(fighter => (
+                  {searchResults1.map(fighter => (
                     <div
                       key={fighter.id}
                       className="fighter-result"
@@ -154,19 +251,44 @@ const Predictions: FC = () => {
               <h4>{selectedFighter2.first_name} {selectedFighter2.last_name}</h4>
               <p>{selectedFighter2.weight_class}</p>
               <p>Record: {selectedFighter2.wins}-{selectedFighter2.losses}-{selectedFighter2.draws}</p>
-              <button onClick={() => setSelectedFighter2(null)}>Change Fighter</button>
+              <button onClick={() => {
+                setSelectedFighter2(null);
+                setSearchTerm2('');
+              }}>Change Fighter</button>
             </div>
           ) : (
             <div className="fighter-search">
+              {selectedFighter1 && !searchTerm2 && recommendations.length > 0 && (
+                <div className="fighter-recommendations">
+                  <h4>Recommended Opponents</h4>
+                  {recommendations.map(fighter => (
+                    <div
+                      key={fighter.id}
+                      className="recommendation-item"
+                      onClick={() => handleFighterSelect(fighter, 'fighter2')}
+                    >
+                      <div className="recommendation-info">
+                        <span className="recommendation-name">
+                          {fighter.first_name} {fighter.last_name}
+                        </span>
+                        <span className="recommendation-record">
+                          {fighter.wins}-{fighter.losses}-{fighter.draws}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <input
                 type="text"
                 placeholder="Search fighters..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchTerm2}
+                onChange={(e) => setSearchTerm2(e.target.value)}
+                autoComplete="off"
               />
-              {fighters.length > 0 && (
+              {searchResults2.length > 0 && (
                 <div className="search-results">
-                  {fighters.map(fighter => (
+                  {searchResults2.map(fighter => (
                     <div
                       key={fighter.id}
                       className="fighter-result"
@@ -219,27 +341,6 @@ const Predictions: FC = () => {
           </div>
         </div>
       )}
-
-      <div className="upcoming-events">
-        <h2>Upcoming Events</h2>
-        <div className="events-grid">
-          {upcomingEvents.map(event => (
-            <div key={event.id} className="event-card">
-              <div className="event-date">
-                {new Date(event.date).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric'
-                })}
-              </div>
-              <div className="event-details">
-                <h3>{event.name}</h3>
-                <p>{event.location}</p>
-                {event.is_pay_per_view && <span className="ppv-badge">PPV</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };

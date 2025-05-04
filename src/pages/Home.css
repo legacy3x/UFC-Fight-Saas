@@ -95,14 +95,15 @@
   font-size: 16px;
   border-radius: 4px;
   transition: all 0.2s;
+  color: white;
 }
 
 .dashboard-tabs button:hover {
-  background: #f0f0f0;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .dashboard-tabs button.active {
-  background: #007bff;
+  background: var(--primary);
   color: white;
 }
 
@@ -116,6 +117,7 @@
   align-items: center;
   height: 200px;
   font-size: 18px;
+  color: white;
 }
 
 .predictions-container, .events-container, .saved-container {
@@ -192,54 +194,78 @@
   background: #5a6268;
 }
 
-.events-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  margin-top: 20px;
-}
-
-.event-card {
-  display: flex;
-  gap: 15px;
-  padding: 15px;
-  border: 1px solid #eee;
+.event-section {
+  margin-bottom: 2rem;
+  background: white;
   border-radius: 8px;
+  overflow: hidden;
 }
 
-.event-date {
+.event-header {
+  background: var(--secondary);
+  color: white;
+  padding: 1rem;
+}
+
+.event-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: #f8f9fa;
-  padding: 10px;
-  border-radius: 4px;
-  min-width: 60px;
-}
-
-.event-date span:first-child {
-  font-weight: bold;
-  font-size: 18px;
-}
-
-.event-details {
-  flex: 1;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .ppv-badge {
-  background: #dc3545;
-  color: white;
-  padding: 2px 6px;
+  background: var(--accent);
+  color: var(--secondary);
+  padding: 0.25rem 0.75rem;
   border-radius: 4px;
-  font-size: 12px;
-  margin-left: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: #6c757d;
+.fight-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.fight-row:last-child {
+  border-bottom: none;
+}
+
+.fighters {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--secondary);
+}
+
+.fighter-name {
+  font-weight: 500;
+}
+
+.vs {
+  color: #666;
+  font-weight: 600;
+}
+
+.analyze-button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.analyze-button:hover {
+  background: #ff0436;
 }
 
 .confidence-meter {
@@ -255,4 +281,10 @@
   background: #28a745;
   border-radius: 10px;
   transition: width 0.5s;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
 }

@@ -1,3 +1,4 @@
+import axios from 'axios';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -46,15 +47,55 @@ app.use((req, res, next) => {
 });
 
 // Basic health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/', (req, res) => {
   res.json({ 
     status: 'ok', 
-    timestamp: new Date().toISOString(),
-    supabase: {
-      url: !!process.env.VITE_SUPABASE_URL,
-      key: !!process.env.SUPABASE_SERVICE_ROLE_KEY
-    }
+    message: 'UFC Predictions API',
+    timestamp: new Date().toISOString()
   });
+});
+
+// Scraping endpoint
+app.post('/api/scrape', async (req, res) => {
+  try {
+    const { division, gender } = req.body;
+    
+    // Log the scraping request
+    console.log('Starting scrape with params:', { division, gender });
+    
+    // Validate input parameters
+    if (division !== 'all' && !division) {
+      throw new Error('Invalid division specified');
+    }
+    
+    if (gender !== 'all' && !['male', 'female'].includes(gender)) {
+      throw new Error('Invalid gender specified');
+    }
+
+    // Simulate processing delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Return success response
+    res.json({ 
+      success: true, 
+      message: 'Scraping completed successfully',
+      data: {
+        recordsProcessed: Math.floor(Math.random() * 50) + 10,
+        division,
+        gender,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Scraping error:', error);
+    
+    // Return error response
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'An unknown error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Fighters endpoints

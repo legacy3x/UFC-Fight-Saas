@@ -1,11 +1,13 @@
 import { FC, useState, useEffect } from 'react'
 import { useSupabaseClient } from '@supabase/auth-helpers-react'
+import { useNavigate } from 'react-router-dom'
 import { Fighter, UpcomingEvent, PredictionLog } from '../types'
 import './Home.css'
 
 const Home: FC = () => {
   const supabase = useSupabaseClient()
-  const [activeTab, setActiveTab] = useState('predictions')
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('events')
   const [fighters, setFighters] = useState<Fighter[]>([])
   const [events, setEvents] = useState<UpcomingEvent[]>([])
   const [predictions, setPredictions] = useState<PredictionLog[]>([])
@@ -13,7 +15,6 @@ const Home: FC = () => {
   const [savedPredictions, setSavedPredictions] = useState<PredictionLog[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
-  // Fetch data based on active tab
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true)
@@ -30,7 +31,14 @@ const Home: FC = () => {
           case 'events':
             const { data: eventsData } = await supabase
               .from('upcoming_events')
-              .select('*')
+              .select(`
+                *,
+                fight_cards (
+                  *,
+                  fighter1:fighter1_id(*),
+                  fighter2:fighter2_id(*)
+                )
+              `)
               .order('date', { ascending: true })
               .limit(10)
             setEvents(eventsData || [])
@@ -53,7 +61,6 @@ const Home: FC = () => {
     fetchData()
   }, [activeTab, supabase])
 
-  // Search fighters
   useEffect(() => {
     const searchFighters = async () => {
       if (searchTerm.length < 2) {
@@ -98,6 +105,15 @@ const Home: FC = () => {
     }
   }
 
+  const handleAnalyzeFight = (fighter1Id: number, fighter2Id: number) => {
+    navigate('/predictions', { 
+      state: { 
+        fighter1Id,
+        fighter2Id
+      }
+    })
+  }
+
   return (
     <div className="user-dashboard">
       <div className="dashboard-header">
@@ -139,16 +155,16 @@ const Home: FC = () => {
 
       <div className="dashboard-tabs">
         <button 
-          className={activeTab === 'predictions' ? 'active' : ''}
-          onClick={() => setActiveTab('predictions')}
-        >
-          Latest Predictions
-        </button>
-        <button 
           className={activeTab === 'events' ? 'active' : ''}
           onClick={() => setActiveTab('events')}
         >
           Upcoming Fights
+        </button>
+        <button 
+          className={activeTab === 'predictions' ? 'active' : ''}
+          onClick={() => setActiveTab('predictions')}
+        >
+          Latest Predictions
         </button>
         <button 
           className={activeTab === 'saved' ? 'active' : ''}
@@ -171,7 +187,7 @@ const Home: FC = () => {
             )}
 
             {activeTab === 'events' && (
-              <EventsList events={events} />
+              <EventsList events={events} onAnalyze={handleAnalyzeFight} />
             )}
 
             {activeTab === 'saved' && (
@@ -184,7 +200,6 @@ const Home: FC = () => {
   )
 }
 
-// Component for predictions list
 const PredictionsList: FC<{ 
   predictions: PredictionLog[],
   onSave: (prediction: PredictionLog) => void
@@ -225,35 +240,50 @@ const PredictionsList: FC<{
   )
 }
 
-// Component for events list
-const EventsList: FC<{ events: UpcomingEvent[] }> = ({ events }) => {
+const EventsList: FC<{ 
+  events: UpcomingEvent[],
+  onAnalyze: (fighter1Id: number, fighter2Id: number) => void
+}> = ({ events, onAnalyze }) => {
   return (
     <div className="events-container">
-      <h2>Upcoming UFC Events</h2>
-      <div className="events-timeline">
-        {events.map(event => (
-          <div key={event.id} className="event-card">
-            <div className="event-date">
-              {new Date(event.date).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric'
-              })}
-            </div>
-            <div className="event-details">
-              <h3>{event.name}</h3>
-              <p>{event.location}</p>
-              {event.is_pay_per_view && (
-                <span className="ppv-badge">PPV Event</span>
-              )}
-            </div>
+      {events.map(event => (
+        <div key={event.id} className="event-section">
+          <div className="event-header">
+            <h2>
+              {event.name} | {new Date(event.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} | {event.location}
+              {event.is_pay_per_view && <span className="ppv-badge">PPV Event</span>}
+            </h2>
           </div>
-        ))}
-      </div>
+          
+          {event.fight_cards && event.fight_cards
+            .filter(card => card.card_type === 'main_card')
+            .sort((a, b) => a.bout_order - b.bout_order)
+            .map(fight => (
+              <div key={fight.id} className="fight-row">
+                <div className="fighters">
+                  <span className="fighter-name">
+                    {fight.fighter1?.first_name} {fight.fighter1?.last_name}
+                  </span>
+                  <span className="vs">VS</span>
+                  <span className="fighter-name">
+                    {fight.fighter2?.first_name} {fight.fighter2?.last_name}
+                  </span>
+                </div>
+                <button 
+                  className="analyze-button"
+                  onClick={() => onAnalyze(fight.fighter1_id, fight.fighter2_id)}
+                >
+                  Analyze Fight
+                </button>
+              </div>
+            ))
+          }
+        </div>
+      ))}
     </div>
   )
 }
 
-// Component for saved predictions
 const SavedPredictions: FC<{ predictions: PredictionLog[] }> = ({ predictions }) => {
   return (
     <div className="saved-container">

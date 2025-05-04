@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Predictions from './pages/Predictions';
-import Events from './pages/Events';
-import Fighters from './pages/Fighters';
 import Admin from './pages/Admin';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminPredictions from './pages/AdminPredictions';
@@ -28,21 +26,11 @@ export default function App() {
               <Predictions />
             </RoleGuard>
           } />
-          <Route path="/events" element={
-            <RoleGuard>
-              <Events />
-            </RoleGuard>
-          } />
-          <Route path="/fighters" element={
-            <RoleGuard>
-              <Fighters />
-            </RoleGuard>
-          } />
-          <Route path="/admin" element={<RoleGuard><Admin /></RoleGuard>} />
-          <Route path="/admin/dashboard" element={<RoleGuard><AdminDashboard /></RoleGuard>} />
-          <Route path="/admin/predictions" element={<RoleGuard><AdminPredictions /></RoleGuard>} />
-          <Route path="/admin/fighters" element={<RoleGuard><AdminFighters /></RoleGuard>} />
-          <Route path="/admin/events" element={<RoleGuard><AdminEvents /></RoleGuard>} />
+          <Route path="/admin" element={<RoleGuard><Admin activeTab="dashboard" /></RoleGuard>} />
+          <Route path="/admin/dashboard" element={<RoleGuard><Admin activeTab="dashboard" /></RoleGuard>} />
+          <Route path="/admin/predictions" element={<RoleGuard><Admin activeTab="predictions" /></RoleGuard>} />
+          <Route path="/admin/fighters" element={<RoleGuard><Admin activeTab="fighters" /></RoleGuard>} />
+          <Route path="/admin/events" element={<RoleGuard><Admin activeTab="events" /></RoleGuard>} />
           <Route path="/admin/tools" element={<RoleGuard><Admin activeTab="tools" /></RoleGuard>} />
           <Route path="/login" element={<Login />} />
         </Routes>

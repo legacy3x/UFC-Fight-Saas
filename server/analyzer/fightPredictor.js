@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { analyzeFighterProfile } from './fighterProfileAnalyzer.js'
 import 'dotenv/config'
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY)
 
 // Prediction thresholds
 const PREDICTION_THRESHOLDS = {
@@ -71,6 +71,19 @@ export async function predictFight(fighter1Id, fighter2Id) {
       advantages
     )
 
+    // Log prediction with properly formatted percentages
+    await supabase
+      .from('prediction_logs')
+      .insert({
+        fighter1_id: fighter1.data.fighter.id,
+        fighter2_id: fighter2.data.fighter.id,
+        fighter1_name: `${fighter1.data.fighter.first_name} ${fighter1.data.fighter.last_name}`,
+        fighter2_name: `${fighter2.data.fighter.first_name} ${fighter2.data.fighter.last_name}`,
+        predicted_winner: `${predictedWinner.first_name} ${predictedWinner.last_name}`,
+        predicted_method: method.replace('_', '/'),
+        confidence: Number(confidence.toFixed(2))
+      })
+
     return {
       success: true,
       data: {
@@ -78,11 +91,18 @@ export async function predictFight(fighter1Id, fighter2Id) {
         fighter2: fighter2.data.fighter,
         prediction: {
           winner: predictedWinner,
-          method,
-          confidence,
+          method: method.replace('_', '/'),
+          confidence: Number(confidence.toFixed(2)),
           reasoning
         },
-        advantages
+        advantages: {
+          striking: Number(advantages.striking.toFixed(2)),
+          grappling: Number(advantages.grappling.toFixed(2)),
+          cardio: Number(advantages.cardio.toFixed(2)),
+          power: Number(advantages.power.toFixed(2)),
+          experience: Number(advantages.experience.toFixed(2)),
+          accuracy: Number(advantages.accuracy.toFixed(2))
+        }
       }
     }
   } catch (error) {
@@ -194,7 +214,7 @@ function predictMethod(winner, fighter1, fighter2, confidence) {
   let style = 'BALANCED'
   if (winnerProfile.strengths.some(s => s.includes('striker'))) {
     style = 'STRIKING'
-  } else if (winnerProfile.strengths.some(s => s.includes('grappling') || s.includes('Submission')))) {
+  } else if (winnerProfile.strengths.some(s => s.includes('grappling') || s.includes('Submission'))) {
     style = 'GRAPPLING'
   }
 
@@ -228,7 +248,7 @@ function predictMethod(winner, fighter1, fighter2, confidence) {
     }
   }
 
-  return 'DECISION' // fallback
+  return 'DECISION'
 }
 
 function generateReasoning(fighter1, fighter2, winner, method, confidence, advantages) {
@@ -237,18 +257,18 @@ function generateReasoning(fighter1, fighter2, winner, method, confidence, advan
     ? `${fighter2.fighter.first_name} ${fighter2.fighter.last_name}`
     : `${fighter1.fighter.first_name} ${fighter1.fighter.last_name}`
 
-  let reasoning = [`${winnerName} is favored over ${loserName} with ${(confidence * 100).toFixed(0)}% confidence.`]
+  let reasoning = [`${winnerName} is favored over ${loserName} with ${Math.round(confidence * 100)}% confidence.`]
 
   // Add primary advantages
   if (Math.abs(advantages.striking) > 0.2) {
     reasoning.push(advantages.striking > 0
-      ? `${winnerName} holds a significant striking advantage (${(advantages.striking * 100).toFixed(0)}% more effective).`
+      ? `${winnerName} holds a significant striking advantage (${Math.round(Math.abs(advantages.striking * 100))}% more effective).`
       : `${loserName} is the more effective striker, but other factors favor ${winnerName}.`)
   }
 
   if (Math.abs(advantages.grappling) > 0.2) {
     reasoning.push(advantages.grappling > 0
-      ? `${winnerName} has superior grappling skills (${(advantages.grappling * 100).toFixed(0)}% more effective).`
+      ? `${winnerName} has superior grappling skills (${Math.round(Math.abs(advantages.grappling * 100))}% more effective).`
       : `${loserName} has better grappling, but ${winnerName} can avoid those situations.`)
   }
 
@@ -285,6 +305,3 @@ function generateReasoning(fighter1, fighter2, winner, method, confidence, advan
 
   return reasoning.join(' ')
 }
-
-// Example usage:
-// predictFight(123, 456).then(console.log)
